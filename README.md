@@ -19,10 +19,10 @@ On the client-side, a signature hash using the private key of the computer certi
 To be added...
 
 # How to use EntraIDDeviceTrust.Client module in a client-side script
-Ensure the EntraIDDeviceTrust.Client module is installed on the device prior to running the sample code below. Use the `Test-AzureADDeviceRegistration` function to ensure the device where the code is running on fulfills the device registration requirements. Then use the `New-EntraIDDeviceTrustBody` function to automatically generate a hash-table object containing the gathered data required for the body of the request. Finally, use built-in `Invoke-RestMethod` cmdlet to invoke the request against the Function App, passing the gathered data to be validated by the Function App, if the request comes from a trusted device.
+Ensure the EntraIDDeviceTrust.Client module is installed on the device prior to running the sample code below. Use the `Test-EntraIDDeviceRegistration` function to ensure the device where the code is running on fulfills the device registration requirements. Then use the `New-EntraIDDeviceTrustBody` function to automatically generate a hash-table object containing the gathered data required for the body of the request. Finally, use built-in `Invoke-RestMethod` cmdlet to invoke the request against the Function App, passing the gathered data to be validated by the Function App, if the request comes from a trusted device.
 
 ```PowerShell
-if (Test-AzureADDeviceRegistration -eq $true) {
+if (Test-EntraIDDeviceRegistration -eq $true) {
     # Create body for Function App request
     $BodyTable = New-EntraIDDeviceTrustBody
 

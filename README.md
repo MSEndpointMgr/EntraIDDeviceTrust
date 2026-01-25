@@ -16,7 +16,19 @@ On the client-side, a signature hash using the private key of the computer certi
 
 ## Function App
 
-To be added...
+On the Function App side, the module receives the incoming request containing the Entra ID device identifier (DeviceID), certificate thumbprint, Base64 encoded public key, and the cryptographic signature from the client. The module performs a multi-stage validation process to ensure the request originates from a trusted Entra ID device:
+
+1. **Device Record Retrieval**: Using Microsoft Graph API, the Function App retrieves the Entra ID device record based on the DeviceID sent from the client. This record contains the alternativeSecurityIds property which holds the device's certificate information registered with Entra ID.
+
+2. **Thumbprint Validation**: The certificate thumbprint from the client request is validated against the thumbprint stored in the device record's alternativeSecurityIds property using the `Test-EntraIDDeviceAlternativeSecurityIds` function.
+
+3. **Public Key Hash Validation**: The public key sent from the client is hashed using SHA256 and compared against the public key hash stored in the device record's alternativeSecurityIds property to ensure it matches the certificate known to Entra ID.
+
+4. **Signature Verification**: The cryptographic signature created by the client using its private key is verified using the public key. The `Test-Encryption` function reconstructs the RSA public key from the client-provided bytes and verifies that the signature was indeed created with the corresponding private key by validating the signed content (the DeviceID) against the signature.
+
+5. **Device Status Check**: Finally, the module validates that the device record is not disabled in Entra ID by checking the accountEnabled property.
+
+If all validation steps pass successfully, the Function App can trust that the request came from the specific Entra ID joined or hybrid Entra ID joined device and proceed with processing the request. If any validation step fails, the Function App returns an HTTP 403 Forbidden status code, rejecting the untrusted request.
 
 # How to use EntraIDDeviceTrust.Client module in a client-side script
 Ensure the EntraIDDeviceTrust.Client module is installed on the device prior to running the sample code below. Use the `Test-EntraIDDeviceRegistration` function to ensure the device where the code is running on fulfills the device registration requirements. Then use the `New-EntraIDDeviceTrustBody` function to automatically generate a hash-table object containing the gathered data required for the body of the request. Finally, use built-in `Invoke-RestMethod` cmdlet to invoke the request against the Function App, passing the gathered data to be validated by the Function App, if the request comes from a trusted device.

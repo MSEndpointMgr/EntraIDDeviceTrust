@@ -12,7 +12,17 @@ Every Entra ID joined or hybrid Entra ID joined device has a computer certificat
 
 ## Client-side
 
-On the client-side, a signature hash using the private key of the computer certificate is calculated and sent encoded as a Base64 string to the Function App including the Entra ID device identifier (the common name of the computer certificate), the public key as a byte array encoded as a Base64 string together with the computer certificate thumbprint. These data strings are sent all together as parameter input when calling the Function App API
+On the client-side, the module performs a series of operations to gather and prepare cryptographic proof that the request is originating from a trusted Entra ID device. The `New-EntraIDDeviceTrustBody` function orchestrates this entire data gathering process:
+
+1. **Device ID Retrieval**: The module queries the local device's registry at `HKLM:\SYSTEM\CurrentControlSet\Control\CloudDomainJoin\JoinInfo` to locate the Entra ID device registration certificate. The device identifier (DeviceID) is extracted from the certificate's subject name, which uniquely identifies this device in Entra ID.
+
+2. **Certificate Thumbprint Extraction**: The thumbprint of the Entra ID registration certificate is retrieved from the registry. This thumbprint serves as a unique identifier for the specific certificate that was enrolled during device registration.
+
+3. **Public Key Export**: The public key from the device registration certificate is extracted as a byte array and encoded as a Base64 string. This public key will be used by the Function App to verify the cryptographic signature.
+
+4. **Signature Generation**: Using the private key of the device registration certificate (stored securely in the LocalMachine certificate store), the module creates a cryptographic signature. The DeviceID is used as the content to be signed: it is first converted to bytes using UTF8 encoding, then a SHA256 hash is computed, and finally the hash is signed using RSA with PKCS1 padding. The resulting signature is encoded as a Base64 string.
+
+All of these elements—the device name, DeviceID, certificate thumbprint, public key, and signature—are combined into a hash table object that forms the body of the HTTP request sent to the Function App. This cryptographic proof allows the Function App to verify that the request genuinely originates from the specific trusted device.
 
 ## Function App
 

@@ -17,10 +17,11 @@ function New-RSACertificateSignature {
         Author:      Nickolaj Andersen / Thomas Kurth
         Contact:     @NickolajA
         Created:     2021-06-03
-        Updated:     2021-06-03
+        Updated:     2026-08-25 (Anders Ahl)
     
         Version history:
         1.0.0 - (2021-06-03) Function created
+        1.0.1 - (2026-08-25) Fixed certificate lookup referencing undefined $CertificateThumbprint instead of the $Thumbprint parameter
 
         Credits to Thomas Kurth for sharing his original C# code.
     #>
@@ -35,7 +36,7 @@ function New-RSACertificateSignature {
     )
     Process {
         # Determine the certificate based on thumbprint input
-        $Certificate = Get-ChildItem -Path "Cert:\LocalMachine\My" -Recurse | Where-Object { $PSItem.Thumbprint -eq $CertificateThumbprint }
+        $Certificate = Get-ChildItem -Path "Cert:\LocalMachine\My" -Recurse | Where-Object { $PSItem.Thumbprint -eq $Thumbprint }
         if ($Certificate -ne $null) {
             if ($Certificate.HasPrivateKey -eq $true) {
                 # Read the RSA private key

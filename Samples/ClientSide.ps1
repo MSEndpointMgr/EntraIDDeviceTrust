@@ -7,17 +7,18 @@
     Author:      Nickolaj Andersen
     Contact:     @NickolajA
     Created:     2022-03-14
-    Updated:     2022-03-14
+    Updated:     2026-08-25 (Anders Ahl)
 
     Version history:
     1.0.0 - (2022-03-14) Script created
+    1.0.1 - (2026-08-25) Preserve existing SecurityProtocol flags instead of overwriting them when enabling TLS 1.2
 #>
 Process {
     # Install required modules
     Install-Module -Name "EntraIDDeviceTrust.Client" -AcceptLicense -Force
 
-    # Use TLS 1.2 connection when calling Azure Function
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    # Use TLS 1.2 (or later, when supported by the OS) connection when calling Azure Function
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
     # Validate that the script is running on an Entra ID joined or hybrid Entra ID joined device
     if (Test-EntraIDDeviceRegistration -eq $true) {

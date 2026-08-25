@@ -19,10 +19,14 @@ function Test-EntraIDDeviceAlternativeSecurityIds {
         Author:      Nickolaj Andersen
         Contact:     @NickolajA
         Created:     2021-06-07
-        Updated:     2021-06-07
+        Updated:     2026-08-25 (Anders Ahl)
     
         Version history:
         1.0.0 - (2021-06-07) Function created
+        1.0.1 - (2026-08-25) Replaced -match/-like with exact, ordinal, case-insensitive -eq comparisons.
+                             -match treats the reference value as a regular expression and -like treats it
+                             as a wildcard pattern, both of which can allow a crafted input value to pass
+                             validation without being an exact match of the trusted value.
     #>
     param(
         [parameter(Mandatory = $true, HelpMessage = "Specify the alternativeSecurityIds.Key property from an Entra ID device record.")]
@@ -44,8 +48,8 @@ function Test-EntraIDDeviceAlternativeSecurityIds {
         
         switch ($Type) {
             "Thumbprint" {
-                # Validate match
-                if ($Value -match $EntraIDDeviceAlternativeSecurityIds.Thumbprint) {
+                # Validate exact match, case-insensitive
+                if ($Value.Equals($EntraIDDeviceAlternativeSecurityIds.Thumbprint, [System.StringComparison]::OrdinalIgnoreCase)) {
                     return $true
                 }
                 else {
@@ -65,8 +69,8 @@ function Test-EntraIDDeviceAlternativeSecurityIds {
                 # Convert computed hash to Base64 string
                 $ComputedHashString = [System.Convert]::ToBase64String($ComputedHash)
 
-                # Validate match
-                if ($ComputedHashString -like $EntraIDDeviceAlternativeSecurityIds.PublicKeyHash) {
+                # Validate exact match, case-insensitive
+                if ($ComputedHashString.Equals($EntraIDDeviceAlternativeSecurityIds.PublicKeyHash, [System.StringComparison]::OrdinalIgnoreCase)) {
                     return $true
                 }
                 else {

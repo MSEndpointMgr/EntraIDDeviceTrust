@@ -42,6 +42,7 @@
                           "Get-EntraIDDeviceRecord",
                           "New-HashString",
                           "Test-EntraIDDeviceAlternativeSecurityIds",
+                          "Test-EntraIDDeviceTrustTimestamp",
                           "Test-Encryption"
     )
     

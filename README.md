@@ -20,9 +20,9 @@ On the client-side, the module performs a series of operations to gather and pre
 
 3. **Public Key Export**: The public key from the device registration certificate is extracted as a byte array and encoded as a Base64 string. This public key will be used by the Function App to verify the cryptographic signature.
 
-4. **Signature Generation**: Using the private key of the device registration certificate (stored securely in the LocalMachine certificate store), the module creates a cryptographic signature. The DeviceID is used as the content to be signed: it is first converted to bytes using UTF8 encoding, then a SHA256 hash is computed, and finally the hash is signed using RSA with PKCS1 padding. The resulting signature is encoded as a Base64 string.
+4. **Signature Generation**: Using the private key of the device registration certificate (stored securely in the LocalMachine certificate store), the module creates a cryptographic signature. A fresh UTC timestamp and a random GUID (nonce) are generated for each call and combined with the DeviceID as `DeviceID|Timestamp|Nonce`. This combined string is converted to bytes using UTF8 encoding, a SHA256 hash is computed, and finally the hash is signed using RSA with PKCS1 padding. The resulting signature is encoded as a Base64 string. Salting the signed content with a per-request timestamp and nonce, instead of signing the static DeviceID alone, prevents a captured request body from being replayed later - the Function App rejects requests whose timestamp falls outside an allowed tolerance window (5 minutes by default).
 
-All of these elements—the device name, DeviceID, certificate thumbprint, public key, and signature—are combined into a hash table object that forms the body of the HTTP request sent to the Function App. This cryptographic proof allows the Function App to verify that the request genuinely originates from the specific trusted device.
+All of these elements—the device name, DeviceID, timestamp, nonce, certificate thumbprint, public key, and signature—are combined into a hash table object that forms the body of the HTTP request sent to the Function App. This cryptographic proof allows the Function App to verify that the request genuinely originates from the specific trusted device and was not replayed.
 
 ## Function App
 
@@ -34,9 +34,13 @@ On the Function App side, the module receives the incoming request containing th
 
 3. **Public Key Hash Validation**: The public key sent from the client is hashed using SHA256 and compared against the public key hash stored in the device record's alternativeSecurityIds property to ensure it matches the certificate known to Entra ID.
 
-4. **Signature Verification**: The cryptographic signature created by the client using its private key is verified using the public key. The `Test-Encryption` function reconstructs the RSA public key from the client-provided bytes and verifies that the signature was indeed created with the corresponding private key by validating the signed content (the DeviceID) against the signature.
+4. **Timestamp Validation**: Before verifying the signature, the `Test-EntraIDDeviceTrustTimestamp` function validates that the client-supplied Timestamp is well-formed, expressed in UTC, and falls within an allowed tolerance window (5 minutes by default) of the current time. Requests with a missing, malformed, or stale timestamp are rejected, which prevents a captured request from being replayed indefinitely.
 
-5. **Device Status Check**: Finally, the module validates that the device record is not disabled in Entra ID by checking the accountEnabled property.
+5. **Signature Verification**: The cryptographic signature created by the client using its private key is verified using the public key. The `Test-Encryption` function reconstructs the RSA public key from the client-provided bytes and verifies that the signature was indeed created with the corresponding private key by validating the signed content (`DeviceID|Timestamp|Nonce`) against the signature.
+
+6. **Device Status Check**: Finally, the module validates that the device record is not disabled in Entra ID by checking the accountEnabled property.
+
+> Note: the timestamp/nonce salt combined with the tolerance-window check stops a captured request from being replayed once the window has elapsed, but it does not by itself guarantee single-use within that window. If strict single-use enforcement is required, persist seen nonces (e.g. in Azure Table Storage, Redis or Cosmos DB) keyed on DeviceID + Nonce and reject duplicates.
 
 If all validation steps pass successfully, the Function App can trust that the request came from the specific Entra ID joined or hybrid Entra ID joined device and proceed with processing the request. If any validation step fails, the Function App returns an HTTP 403 Forbidden status code, rejecting the untrusted request.
 

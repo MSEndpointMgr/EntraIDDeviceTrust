@@ -13,16 +13,19 @@ function Test-Encryption {
         Specify the Base64 encoded string representation of the signature coming from the inbound request.
 
     .PARAMETER Content
-        Specify the content string that the signature coming from the inbound request is based upon.
-    
+        Specify the content string that the signature coming from the inbound request is based upon, e.g. "DeviceID|Timestamp|Nonce".
+
     .NOTES
         Author:      Nickolaj Andersen / Thomas Kurth
         Contact:     @NickolajA
         Created:     2021-06-07
-        Updated:     2021-06-07
-    
+        Updated:     2026-08-25 (Anders Ahl)
+
         Version history:
         1.0.0 - (2021-06-07) Function created
+        1.0.1 - (2026-08-25) Replaced manual modulus/exponent byte parsing with RSA.ImportRSAPublicKey, which correctly
+                             handles keys of any size and exponent length instead of assuming a 2048-bit modulus and
+                             a 3-byte exponent
 
         Credits to Thomas Kurth for sharing his original C# code.
     #>
@@ -46,32 +49,31 @@ function Test-Encryption {
         # Convert signature from Base64 string
         [byte[]]$Signature = [System.Convert]::FromBase64String($Signature)
 
-        # Extract the modulus and exponent based on public key data
-        $ExponentData = [System.Byte[]]::CreateInstance([System.Byte], 3)
-        $ModulusData = [System.Byte[]]::CreateInstance([System.Byte], 256)
-        [System.Array]::Copy($PublicKeyBytes, $PublicKeyBytes.Length - $ExponentData.Length, $ExponentData, 0, $ExponentData.Length)
-        [System.Array]::Copy($PublicKeyBytes, 9, $ModulusData, 0, $ModulusData.Length)
+        # Reconstruct the RSA public key directly from the PKCS#1 encoded bytes returned by
+        # X509Certificate2.GetPublicKey(). This avoids manually slicing modulus/exponent bytes at
+        # fixed offsets, which only worked for exactly 2048-bit keys with a 3-byte exponent.
+        $RSA = [System.Security.Cryptography.RSA]::Create()
+        try {
+            $BytesRead = 0
+            $RSA.ImportRSAPublicKey($PublicKeyBytes, [ref]$BytesRead)
 
-        # Construct RSACryptoServiceProvider and import modolus and exponent data as parameters to reconstruct the public key from bytes
-        $PublicKey = [System.Security.Cryptography.RSACryptoServiceProvider]::Create(2048)
-        $RSAParameters = $PublicKey.ExportParameters($false)
-        $RSAParameters.Modulus = $ModulusData
-        $RSAParameters.Exponent = $ExponentData
-        $PublicKey.ImportParameters($RSAParameters)
+            # Construct a new SHA256 object to be used when computing the hash
+            $SHA256 = [System.Security.Cryptography.SHA256]::Create()
 
-        # Construct a new SHA256Managed object to be used when computing the hash
-        $SHA256Managed = New-Object -TypeName "System.Security.Cryptography.SHA256Managed"
+            # Construct new UTF8 unicode encoding object
+            $UnicodeEncoding = [System.Text.UnicodeEncoding]::UTF8
 
-        # Construct new UTF8 unicode encoding object
-        $UnicodeEncoding = [System.Text.UnicodeEncoding]::UTF8
+            # Convert content to byte array
+            [byte[]]$EncodedContentData = $UnicodeEncoding.GetBytes($Content)
 
-        # Convert content to byte array
-        [byte[]]$EncodedContentData = $UnicodeEncoding.GetBytes($Content)
+            # Compute the hash
+            [byte[]]$ComputedHash = $SHA256.ComputeHash($EncodedContentData)
 
-        # Compute the hash
-        [byte[]]$ComputedHash = $SHA256Managed.ComputeHash($EncodedContentData)
-
-        # Verify the signature with the computed hash of the content using the public key
-        $PublicKey.VerifyHash($ComputedHash, $Signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+            # Verify the signature with the computed hash of the content using the public key
+            return $RSA.VerifyHash($ComputedHash, $Signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+        }
+        finally {
+            $RSA.Dispose()
+        }
     }
 }
